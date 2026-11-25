@@ -1,0 +1,14 @@
+<resources>
+    <string name="app_name">Bubble Blitz</string>
+    <string name="publisher_name">Bitogin Tech</string>
+    <string name="tagline">Pop. Strategize. Conquer.</string>
+    <string name="play_button">PLAY</string>
+    <string name="cd_settings">Settings</string>
+    <string name="cd_pause">Pause game</string>
+    <string name="cd_back">Navigate back</string>
+    <string name="cd_close">Close dialog</string>
+    <string name="cd_swap_bubble">Swap current and next bubble</string>
+    <string name="cd_mascot">Bubble Blitz mascot</string>
+    <string name="cd_daily_chest">Daily reward treasure chest</string>
+    <string name="cd_avatar">Player avatar</string>
+</resources>

@@ -1,0 +1,6 @@
+{
+  "name": "Bubble Blitz",
+  "description": "Pop. Strategize. Conquer. A vibrant native Android bubble-shooter game by Bitogin Tech with 100 levels, boosters, daily rewards, and original audio.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

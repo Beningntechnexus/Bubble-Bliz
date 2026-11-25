@@ -1,0 +1,101 @@
+name: Build Release APK
+
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-release-apk:
+    name: Build Signed Release APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Android SDK & Accept Licenses
+        uses: android-actions/setup-android@v3
+
+      - name: Set up Gradle 9.3.1
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.3.1'
+
+      - name: Configure Release Signing Keystore
+        shell: bash
+        env:
+          SECRET_KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
+          SECRET_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
+          SECRET_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+        run: |
+          KEYSTORE_FILE="${RUNNER_TEMP}/release-upload.jks"
+          if [ -n "$SECRET_KEYSTORE_BASE64" ] && [ -n "$SECRET_STORE_PASSWORD" ] && [ -n "$SECRET_KEY_PASSWORD" ]; then
+            echo "Using repository secret release keystore."
+            echo "$SECRET_KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE_FILE"
+            STORE_PWD="$SECRET_STORE_PASSWORD"
+            KEY_PWD="$SECRET_KEY_PASSWORD"
+          else
+            echo "No release signing secrets found; generating a signed upload keystore for this build."
+            STORE_PWD="bubbleblitz-release"
+            KEY_PWD="bubbleblitz-release"
+            keytool -genkeypair -v \
+              -keystore "$KEYSTORE_FILE" \
+              -storetype PKCS12 \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 10000 \
+              -alias upload \
+              -storepass "$STORE_PWD" \
+              -keypass "$KEY_PWD" \
+              -dname "CN=Bitogin Tech, OU=Mobile, O=Bitogin Tech, C=US"
+          fi
+          echo "KEYSTORE_PATH=${KEYSTORE_FILE}" >> "$GITHUB_ENV"
+          echo "STORE_PASSWORD=${STORE_PWD}" >> "$GITHUB_ENV"
+          echo "KEY_PASSWORD=${KEY_PWD}" >> "$GITHUB_ENV"
+
+      - name: Build Release APK
+        run: gradle :app:assembleRelease --no-daemon
+
+      - name: Verify and Stage Release APK
+        shell: bash
+        run: |
+          APK_SRC="app/build/outputs/apk/release/app-release.apk"
+          if [ ! -f "$APK_SRC" ]; then
+            echo "Release APK not found at $APK_SRC"
+            exit 1
+          fi
+          mkdir -p "${RUNNER_TEMP}/release-apk"
+          cp "$APK_SRC" "${RUNNER_TEMP}/release-apk/BubbleBlitz-release.apk"
+          ls -lh "${RUNNER_TEMP}/release-apk/BubbleBlitz-release.apk"
+
+      - name: Upload Release APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: BubbleBlitz-release-apk
+          path: ${{ runner.temp }}/release-apk/BubbleBlitz-release.apk
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Publish APK to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || github.event_name == 'workflow_dispatch'
+        continue-on-error: true
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'latest' }}
+          name: ${{ startsWith(github.ref, 'refs/tags/') && format('Bubble Blitz {0}', github.ref_name) || 'Bubble Blitz Latest Release' }}
+          body: |
+            Automated signed Android Release APK for **Bubble Blitz** (`com.aistudio.bubbleblitz.btgnxk`).
+            Download `BubbleBlitz-release.apk` below to install on an Android device.
+          files: ${{ runner.temp }}/release-apk/BubbleBlitz-release.apk
+          make_latest: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
